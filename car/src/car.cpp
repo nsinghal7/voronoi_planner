@@ -55,8 +55,6 @@ public:
   }
 
   void simLoop(const ros::TimerEvent& t) {
-    std::cout << "in sim loop\n";
-
     ros::Time time = ros::Time::now();
     double dt = (time - last_step_).toSec();
     last_step_ = time;
@@ -73,6 +71,21 @@ public:
     }
 
     std::cout << "x: " << x_ << " y: " << y_ << std::endl;
+    geometry_msgs::TransformStamped trans;
+    trans.header.stamp = time;
+    trans.header.frame_id = "world";
+    trans.child_frame_id = "car_baselink";
+    trans.transform.translation.x = x_;
+    trans.transform.translation.y = y_;
+    trans.transform.translation.z = 0;
+    tf2::Quaternion q;
+    q.setRPY(0, 0, theta_);
+    trans.transform.rotation.x = q.x();
+    trans.transform.rotation.y = q.y();
+    trans.transform.rotation.z = q.z();
+    trans.transform.rotation.w = q.w();
+
+    br_.sendTransform(trans);
   }
 };
 
