@@ -1,0 +1,10 @@
+<launch>
+  <arg name="nr" default="1" />
+  <include file="$(find car)/launch/run_car.launch" ns="$(eval 'car_' + str(arg('nr')))">
+    <arg name="nr" value="$(eval arg('nr'))" />
+  </include>
+
+  <include file="$(find car)/launch/multi_car.launch" if="$(eval arg('nr') - 1 > 0)">
+    <arg name="nr" value="$(eval arg('nr') - 1)" />
+  </include>
+</launch>

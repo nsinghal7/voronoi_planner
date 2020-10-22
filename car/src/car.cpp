@@ -14,7 +14,7 @@
 #define PI M_PI
 
 class CarNode {
-  ros::NodeHandle nh;
+  ros::NodeHandle nh_;
 
   ros::Subscriber control_sub_;
   ros::Publisher car_marker_pub_;
@@ -46,11 +46,13 @@ class CarNode {
   int car_num_;
 
 public:
-  CarNode(): x_(0), y_(0), theta_(0), v_(0), delta_(0), car_num_(0) {
-    control_sub_ = nh.subscribe("car_" + std::to_string(car_num_) + "_control", 0, &CarNode::onControl, this);
-    car_marker_pub_ = nh.advertise<visualization_msgs::Marker>("car_markers", 0, this);
+  CarNode(): x_(0), y_(0), theta_(0), v_(0), delta_(0), nh_("~") {
+    nh_.getParam("car_num", car_num_);
+    std::cout << "found car num: " << car_num_ << std::endl;
+    control_sub_ = nh_.subscribe("car_" + std::to_string(car_num_) + "_control", 0, &CarNode::onControl, this);
+    car_marker_pub_ = nh_.advertise<visualization_msgs::Marker>("car_markers", 0, this);
     last_step_ = ros::Time::now();
-    timer_ = nh.createTimer(ros::Duration(1/hz_), &CarNode::simLoop, this);
+    timer_ = nh_.createTimer(ros::Duration(1/hz_), &CarNode::simLoop, this);
   }
 
   void onControl(const ackermann_msgs::AckermannDrive& control) {
