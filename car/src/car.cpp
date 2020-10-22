@@ -7,6 +7,8 @@
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <ackermann_msgs/AckermannDrive.h>
+#include <visualization_msgs/Marker.h>
+
 #include <cmath>
 #include <math.h>
 #define PI M_PI
@@ -14,8 +16,8 @@
 class CarNode {
   ros::NodeHandle nh;
 
-  ros::Subscriber controlSub_;
-  ros::Publisher posePub_;
+  ros::Subscriber control_sub_;
+  ros::Publisher car_marker_pub_;
   ros::Timer timer_;
 
   tf2_ros::TransformBroadcaster br_;
@@ -41,10 +43,12 @@ class CarNode {
 
   ros::Time last_step_;
 
+  int car_num_;
+
 public:
-  CarNode(): x_(0), y_(0), theta_(0), v_(0), delta_(0) {
-    controlSub_ = nh.subscribe("car_control", 1, &CarNode::onControl, this);
-    posePub_ = nh.advertise<geometry_msgs::PoseStamped>("car_pose", 1, this);
+  CarNode(): x_(0), y_(0), theta_(0), v_(0), delta_(0), car_num_(0) {
+    control_sub_ = nh.subscribe("car_" + std::to_string(car_num_) + "_control", 0, &CarNode::onControl, this);
+    car_marker_pub_ = nh.advertise<visualization_msgs::Marker>("car_markers", 0, this);
     last_step_ = ros::Time::now();
     timer_ = nh.createTimer(ros::Duration(1/hz_), &CarNode::simLoop, this);
   }
@@ -70,11 +74,10 @@ public:
       v_ = std::min(max_vel_, std::min(v_ + max_accel_*dt, desired_speed_));
     }
 
-    std::cout << "x: " << x_ << " y: " << y_ << std::endl;
     geometry_msgs::TransformStamped trans;
     trans.header.stamp = time;
     trans.header.frame_id = "world";
-    trans.child_frame_id = "car_baselink";
+    trans.child_frame_id = "car_" + std::to_string(car_num_) + "_baselink";
     trans.transform.translation.x = x_;
     trans.transform.translation.y = y_;
     trans.transform.translation.z = 0;
@@ -84,8 +87,29 @@ public:
     trans.transform.rotation.y = q.y();
     trans.transform.rotation.z = q.z();
     trans.transform.rotation.w = q.w();
-
     br_.sendTransform(trans);
+
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = "world";
+    marker.header.stamp = time;
+    marker.ns = "car_" + std::to_string(car_num_) + "_viz";
+    marker.id = 0;
+    marker.type = visualization_msgs::Marker::CUBE;
+    marker.pose.position.x = x_ + cos(theta_)*length_/2;
+    marker.pose.position.y = y_ + sin(theta_)*length_/2;
+    marker.pose.position.z = 0;
+    marker.pose.orientation.x = q.x();
+    marker.pose.orientation.y = q.y();
+    marker.pose.orientation.z = q.z();
+    marker.pose.orientation.w = q.w();
+    marker.scale.x = length_;
+    marker.scale.y = width_;
+    marker.scale.z = height_;
+    marker.color.a = 1.0;
+    marker.color.r = 0;
+    marker.color.g = 1.0;
+    marker.color.b = 0;
+    car_marker_pub_.publish(marker);
   }
 };
 
