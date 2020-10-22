@@ -1,0 +1,4 @@
+<launch>
+  <node name="car" pkg="car" type="car_node" output="screen" />
+  <node name="rviz" pkg="rviz" type="rviz" />
+</launch>
