@@ -7,6 +7,7 @@
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <ackermann_msgs/AckermannDrive.h>
+#include <nav_msgs/Odometry.h>
 #include <visualization_msgs/Marker.h>
 
 #include <cmath>
@@ -18,6 +19,7 @@ class CarNode {
 
   ros::Subscriber control_sub_;
   ros::Publisher car_marker_pub_;
+  ros::Publisher odom_pub_;
   ros::Timer timer_;
 
   tf2_ros::TransformBroadcaster br_;
@@ -44,18 +46,22 @@ class CarNode {
   ros::Time last_step_;
 
   int car_num_;
+  std::string car_name_;
 
 public:
   CarNode(): x_(0), y_(0), theta_(0), v_(0), delta_(0), nh_("~") {
     nh_.getParam("car_num", car_num_);
     std::cout << "found car num: " << car_num_ << std::endl;
-    control_sub_ = nh_.subscribe("car_" + std::to_string(car_num_) + "_control", 0, &CarNode::onControl, this);
-    car_marker_pub_ = nh_.advertise<visualization_msgs::Marker>("car_markers", 0, this);
+    car_name_ = "car_" + std::to_string(car_num_);
+    control_sub_ = nh_.subscribe("/" + car_name_ + "_control", 1, &CarNode::onControl, this);
+    car_marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/car_markers", 1, this);
+    odom_pub_ = nh_.advertise<nav_msgs::Odometry>("/" + car_name_ + "_odom", 1, this);
     last_step_ = ros::Time::now();
     timer_ = nh_.createTimer(ros::Duration(1/hz_), &CarNode::simLoop, this);
   }
 
   void onControl(const ackermann_msgs::AckermannDrive& control) {
+    // TODO implement limits on steering angle
     desired_steering_angle_ = control.steering_angle;
     desired_speed_ = control.speed;
   }
@@ -69,6 +75,7 @@ public:
     y_ += sin(theta_)*v_*dt;
     delta_ = desired_steering_angle_; // for now it updates immediately
     theta_ += v_*tan(delta_)/L_*dt;
+    theta_ = fmod(theta_, 2*PI);
 
     if(desired_speed_ < v_) {
       v_ = std::max(-max_vel_, std::max(v_ - max_accel_*dt, desired_speed_));
@@ -79,7 +86,7 @@ public:
     geometry_msgs::TransformStamped trans;
     trans.header.stamp = time;
     trans.header.frame_id = "world";
-    trans.child_frame_id = "car_" + std::to_string(car_num_) + "_baselink";
+    trans.child_frame_id = car_name_ + "_baselink";
     trans.transform.translation.x = x_;
     trans.transform.translation.y = y_;
     trans.transform.translation.z = 0;
@@ -91,10 +98,26 @@ public:
     trans.transform.rotation.w = q.w();
     br_.sendTransform(trans);
 
+    nav_msgs::Odometry odom;
+    odom.header.stamp = time;
+    odom.header.frame_id = "world";
+    odom.child_frame_id = car_name_ + "_baselink";
+    odom.pose.pose.position.x = x_;
+    odom.pose.pose.position.y = y_;
+    odom.pose.pose.position.z = 0;
+    odom.pose.pose.orientation.x = q.x();
+    odom.pose.pose.orientation.y = q.y();
+    odom.pose.pose.orientation.z = q.z();
+    odom.pose.pose.orientation.w = q.w();
+    odom.twist.twist.linear.x = v_;
+    odom.twist.twist.linear.y = 0;
+    odom.twist.twist.linear.z = 0;
+    odom_pub_.publish(odom);
+
     visualization_msgs::Marker marker;
     marker.header.frame_id = "world";
     marker.header.stamp = time;
-    marker.ns = "car_" + std::to_string(car_num_) + "_viz";
+    marker.ns = car_name_;
     marker.id = 0;
     marker.type = visualization_msgs::Marker::CUBE;
     marker.pose.position.x = x_ + cos(theta_)*length_/2;
