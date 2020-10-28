@@ -46,8 +46,8 @@ public:
     std::cout << "controller found car num: " << car_num_ << std::endl;
     car_name_ = "car_" + std::to_string(car_num_);
 
-    odom_sub_ = nh_.subscribe("/" + car_name_ + "_odom", 1, &PurePursuitControllerNode::onOdom, this);
-    control_pub_ = nh_.advertise<ackermann_msgs::AckermannDrive>("/" + car_name_ + "_control", 1, this);
+    odom_sub_ = nh_.subscribe("/" + car_name_ + "/odom", 1, &PurePursuitControllerNode::onOdom, this);
+    control_pub_ = nh_.advertise<ackermann_msgs::AckermannDrive>("/" + car_name_ + "/control", 1, this);
   }
 
   void onOdom(const nav_msgs::Odometry& odom) {

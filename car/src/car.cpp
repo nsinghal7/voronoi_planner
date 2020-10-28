@@ -53,9 +53,9 @@ public:
     nh_.getParam("car_num", car_num_);
     std::cout << "found car num: " << car_num_ << std::endl;
     car_name_ = "car_" + std::to_string(car_num_);
-    control_sub_ = nh_.subscribe("/" + car_name_ + "_control", 1, &CarNode::onControl, this);
+    control_sub_ = nh_.subscribe("/" + car_name_ + "/control", 1, &CarNode::onControl, this);
     car_marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/car_markers", 1, this);
-    odom_pub_ = nh_.advertise<nav_msgs::Odometry>("/" + car_name_ + "_odom", 1, this);
+    odom_pub_ = nh_.advertise<nav_msgs::Odometry>("/" + car_name_ + "/odom", 1, this);
     last_step_ = ros::Time::now();
     timer_ = nh_.createTimer(ros::Duration(1/hz_), &CarNode::simLoop, this);
   }
@@ -120,8 +120,8 @@ public:
     marker.ns = car_name_;
     marker.id = 0;
     marker.type = visualization_msgs::Marker::CUBE;
-    marker.pose.position.x = x_ + cos(theta_)*length_/2;
-    marker.pose.position.y = y_ + sin(theta_)*length_/2;
+    marker.pose.position.x = x_ + cos(theta_)*L_/2;
+    marker.pose.position.y = y_ + sin(theta_)*L_/2;
     marker.pose.position.z = 0;
     marker.pose.orientation.x = q.x();
     marker.pose.orientation.y = q.y();
