@@ -1,11 +1,13 @@
 #include <ros/ros.h>
 
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2/utils.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <ackermann_msgs/AckermannDrive.h>
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/Marker.h>
@@ -21,6 +23,7 @@ namespace car {
 class CarNode {
   ros::NodeHandle nh_;
 
+  ros::Subscriber start_sub_;
   ros::Subscriber control_sub_;
   ros::Publisher car_marker_pub_;
   ros::Publisher odom_pub_;
@@ -62,12 +65,16 @@ public:
     control_sub_ = nh_.subscribe(params_.control_topic, 1, &CarNode::onControl, this);
     car_marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/car_markers", 1, this);
     odom_pub_ = nh_.advertise<nav_msgs::Odometry>(params_.odom_topic, 1, this);
+    start_sub_ = nh_.subscribe("/initialpose", 1, &CarNode::onStart, this);
+    visualize();
+  }
+
+  void onStart(const geometry_msgs::PoseWithCovarianceStamped& ignored) {
     last_step_ = ros::Time::now();
     timer_ = nh_.createTimer(ros::Duration(1/params_.hz), &CarNode::simLoop, this);
   }
 
   void onControl(const ackermann_msgs::AckermannDrive& control) {
-    // TODO implement limits on steering angle
     desired_steering_angle_ = control.steering_angle;
     desired_speed_ = control.speed;
   }
@@ -89,7 +96,11 @@ public:
     } else {
       v_ = std::min(params_.max_vel, std::min(v_ + params_.max_accel*dt, desired_speed_));
     }
+    visualize();
+  }
 
+  void visualize() {
+    ros::Time time = ros::Time::now();
     geometry_msgs::TransformStamped trans;
     trans.header.stamp = time;
     trans.header.frame_id = "world";
@@ -145,12 +156,11 @@ public:
   }
 };
 
+} // namespace car
 
 int main(int argc, char** argv) {
   ros::init(argc, argv, "car_node");
-  CarNode n;
+  car::CarNode n;
   ros::spin();
 }
-
-} // namespace car
 

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <ros/ros.h>
 
 namespace car {

@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2/utils.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/Pose.h>
@@ -28,6 +29,7 @@ class PurePursuitControllerNode {
 
   double goal_x_;
   double goal_y_;
+  bool backing_up_ = false;
 
   int car_num_;
 
@@ -35,7 +37,6 @@ class PurePursuitControllerNode {
 
 public:
   PurePursuitControllerNode(): nh_("~") {
-    // TODO: set initial and goal poses based on a common generator
     nh_.getParam("car_num", car_num_);
     params_.parse(nh_);
     std::cout << "controller found car num: " << car_num_ << std::endl;
@@ -46,7 +47,7 @@ public:
 
     odom_sub_ = nh_.subscribe(params_.odom_topic, 1, &PurePursuitControllerNode::onOdom, this);
     control_pub_ = nh_.advertise<ackermann_msgs::AckermannDrive>(params_.control_topic, 1, this);
-    marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/ppc_markers", 1, this);
+    marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/ppc_markers", 3, this);
   }
 
   void onOdom(const nav_msgs::Odometry& odom) {
@@ -54,11 +55,7 @@ public:
     double y = odom.pose.pose.position.y;
     tf2::Quaternion q;
     tf2::fromMsg(odom.pose.pose.orientation, q);
-    if(abs(q.getAxis().z()) < .99 && abs(q.getAngle()) > .001) {
-      std::cerr << "PPC expected orientation to only have yaw: " << q.getAxis().x() << " " << q.getAxis().y() << " " << q.getAxis().z() << std::endl;
-      throw "Pure Pursuit Controller expected orientation to only have yaw";
-    }
-    double theta = q.getAngle();
+    double theta = tf2::getYaw(q);
     double v = odom.twist.twist.linear.x;
 
     // Because the goal traj always contains current position, this is exact dist to lookahead point
@@ -66,13 +63,22 @@ public:
     
     double dx_g = (goal_x_ - x - cos(theta)*params_.lfw), dy_g = (goal_y_ - y - sin(theta)*params_.lfw);
     double dx_r = dx_g * cos(theta) + dy_g * sin(theta);
-    double dy_r = -dy_g * sin(theta) + dy_g * cos(theta);
-    double eta = atan2(dy_g, dx_g) - theta;
+    double dy_r = -dx_g * sin(theta) + dy_g * cos(theta);
+    const double eta_orig = atan2(dy_r, dx_r);
     double v_des = params_.max_vel; // TODO choose better desired velocity and allow parameterization
-    if(abs(eta) > PI / 2) {
+    double eta = eta_orig;
+    if((backing_up_ && abs(eta_orig) > PI/3) || (!backing_up_ && abs(eta_orig) > PI / 2)) {
       // backwards goal. I choose to turn the nose towards the goal rather than backing up to it
+      backing_up_ = true;
       v_des *= -1;
-      eta *= -1;
+      if(eta > 0) {
+        eta = eta - PI;
+      } else {
+        eta = eta + PI;
+      }
+    } else {
+      // not backing up
+      backing_up_ = false;
     }
     double delta = atan2(params_.L*sin(eta), L_fw / 2 + params_.lfw * cos(eta)); // guaranteed to be 1st/4th quad if lookahead/2>lfw
 
@@ -82,15 +88,13 @@ public:
     control_pub_.publish(control);
 
     visualization_msgs::Marker marker;
-    marker.header.frame_id = "world";
+    marker.header.frame_id = car_name_ + "_baselink";
     marker.header.stamp = ros::Time::now();
     marker.ns = car_name_;
-    marker.id = car_num_*2;
+    marker.id = car_num_*3;
     marker.type = visualization_msgs::Marker::SPHERE;
-    double lf_xr = cos(eta)*L_fw;
-    double lf_yr = sin(eta)*L_fw;
-    marker.pose.position.x = x + cos(theta)*params_.lfw + cos(theta)*lf_xr -sin(theta)*lf_yr;
-    marker.pose.position.y = y + sin(theta)*params_.lfw + cos(theta)*lf_yr + sin(theta)*lf_xr;
+    marker.pose.position.x = params_.lfw + cos(eta) * L_fw;
+    marker.pose.position.y = sin(eta) * L_fw;
     marker.pose.position.z = 0;
     marker.scale.x = .1;
     marker.scale.y = .1;
@@ -102,8 +106,19 @@ public:
     marker_pub_.publish(marker);
 
     marker.id++;
+    marker.header.frame_id = "world";
     marker.pose.position.x = goal_x_;
     marker.pose.position.y = goal_y_;
+    marker.pose.position.z = 0;
+    marker.color.r = 0;
+    marker.color.g = 1;
+    marker.color.b = 0;
+    marker_pub_.publish(marker);
+
+    marker.id++;
+    marker.header.frame_id = car_name_ + "_baselink";
+    marker.pose.position.x = params_.lfw + cos(eta_orig) * L_fw;
+    marker.pose.position.y = sin(eta) * L_fw;
     marker.pose.position.z = 0;
     marker.color.r = 0;
     marker.color.g = 0;
@@ -113,12 +128,11 @@ public:
 
 };
 
+} // namespace car
 
 int main(int argc, char** argv) {
   ros::init(argc, argv, "pure_pursuit_controller_node");
-  PurePursuitControllerNode n;
+  car::PurePursuitControllerNode n;
   ros::spin();
 }
-
-} // namespace car
 

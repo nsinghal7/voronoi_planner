@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string>
 #include "car/car_param_parser.h"
 #include <cmath>
