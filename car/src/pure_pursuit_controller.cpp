@@ -8,6 +8,7 @@
 #include <ackermann_msgs/AckermannDrive.h>
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/Marker.h>
+#include "car/car_param_parser.h"
 
 #include <cmath>
 #include <math.h>
@@ -18,19 +19,9 @@ class PurePursuitControllerNode {
 
   ros::Subscriber odom_sub_;
   ros::Publisher control_pub_;
+  ros::Publisher marker_pub_;
 
-  double hz_ = 30;
-
-  double L_ = 0.7;
-  double lfw_ = 0.15;
-  double max_accel_ = 1;
-  double max_vel_ = 1;
-  double width_ = 0.3;
-  double length_ = 0.8;
-  double height_ = 0.15; // doesn't matter
-
-  double lookahead_dist_ = 0.3;
-  double lookahead_time_ = 0.05; // adds this factor times velocity to lookahead dist
+  CarParamParser params_;
 
   double goal_x_;
   double goal_y_;
@@ -43,11 +34,13 @@ public:
   PurePursuitControllerNode(): nh_("~"), goal_x_(5), goal_y_(5)  {
     // TODO: set initial and goal poses based on a common generator
     nh_.getParam("car_num", car_num_);
+    params_.parse(nh_);
     std::cout << "controller found car num: " << car_num_ << std::endl;
     car_name_ = "car_" + std::to_string(car_num_);
 
-    odom_sub_ = nh_.subscribe("/" + car_name_ + "/odom", 1, &PurePursuitControllerNode::onOdom, this);
-    control_pub_ = nh_.advertise<ackermann_msgs::AckermannDrive>("/" + car_name_ + "/control", 1, this);
+    odom_sub_ = nh_.subscribe(params_.odom_topic, 1, &PurePursuitControllerNode::onOdom, this);
+    control_pub_ = nh_.advertise<ackermann_msgs::AckermannDrive>(params_.control_topic, 1, this);
+    marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/ppc_markers", 1, this);
   }
 
   void onOdom(const nav_msgs::Odometry& odom) {
@@ -55,30 +48,61 @@ public:
     double y = odom.pose.pose.position.y;
     tf2::Quaternion q;
     tf2::fromMsg(odom.pose.pose.orientation, q);
-    if(abs(q.getAxis().z()) < .99) {
+    if(abs(q.getAxis().z()) < .99 && abs(q.getAngle()) > .001) {
+      std::cerr << "PPC expected orientation to only have yaw: " << q.getAxis().x() << " " << q.getAxis().y() << " " << q.getAxis().z() << std::endl;
       throw "Pure Pursuit Controller expected orientation to only have yaw";
     }
     double theta = q.getAngle();
     double v = odom.twist.twist.linear.x;
 
     // Because the goal traj always contains current position, this is exact dist to lookahead point
-    double L_fw= lookahead_dist_ + lookahead_time_ * v; // TODO what happens if this is negative?
+    double L_fw= params_.lookahead_dist + params_.lookahead_time * v; // TODO what happens if this is negative?
     
-    double dx_g = (goal_x_ - x), dy_g = (goal_y_ - y);
+    double dx_g = (goal_x_ - x - cos(theta)*params_.lfw), dy_g = (goal_y_ - y - sin(theta)*params_.lfw);
     double dx_r = dx_g * cos(theta) + dy_g * sin(theta);
     double dy_r = -dy_g * sin(theta) + dy_g * cos(theta);
-    double eta = atan2(dy_r, dx_r);
-    double v_des = max_vel_; // TODO choose better desired velocity and allow parameterization
+    double eta = atan2(dy_g, dx_g) - theta;
+    double v_des = params_.max_vel; // TODO choose better desired velocity and allow parameterization
     if(abs(eta) > PI / 2) {
       // backwards goal. I choose to turn the nose towards the goal rather than backing up to it
       v_des *= -1;
+      eta *= -1;
     }
-    double delta = atan2(L_*sin(eta), L_fw / 2 + lfw_ * cos(eta)); // guaranteed to be 1st/4th quad if lookahead/2>lfw
+    double delta = atan2(params_.L*sin(eta), L_fw / 2 + params_.lfw * cos(eta)); // guaranteed to be 1st/4th quad if lookahead/2>lfw
 
     ackermann_msgs::AckermannDrive control;
     control.steering_angle = delta;
     control.speed = v_des;
     control_pub_.publish(control);
+
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = "world";
+    marker.header.stamp = ros::Time::now();
+    marker.ns = car_name_;
+    marker.id = car_num_*2;
+    marker.type = visualization_msgs::Marker::SPHERE;
+    double lf_xr = cos(eta)*L_fw;
+    double lf_yr = sin(eta)*L_fw;
+    marker.pose.position.x = x + cos(theta)*params_.lfw + cos(theta)*lf_xr -sin(theta)*lf_yr;
+    marker.pose.position.y = y + sin(theta)*params_.lfw + cos(theta)*lf_yr + sin(theta)*lf_xr;
+    marker.pose.position.z = 0;
+    marker.scale.x = .1;
+    marker.scale.y = .1;
+    marker.scale.z = .1;
+    marker.color.a = 1.0;
+    marker.color.r = 1;
+    marker.color.g = 0;
+    marker.color.b = 0;
+    marker_pub_.publish(marker);
+
+    marker.id++;
+    marker.pose.position.x = goal_x_;
+    marker.pose.position.y = goal_y_;
+    marker.pose.position.z = 0;
+    marker.color.r = 0;
+    marker.color.g = 0;
+    marker.color.b = 1;
+    marker_pub_.publish(marker);
   }
 
 };

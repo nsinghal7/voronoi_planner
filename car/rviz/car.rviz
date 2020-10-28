@@ -57,7 +57,7 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
-        car_0_baselink:
+        car_1_baselink:
           Value: true
         world:
           Value: true
@@ -68,7 +68,7 @@ Visualization Manager:
       Show Names: true
       Tree:
         world:
-          car_0_baselink:
+          car_1_baselink:
             {}
       Update Interval: 0
       Value: true
@@ -77,7 +77,15 @@ Visualization Manager:
       Marker Topic: /car_markers
       Name: Marker
       Namespaces:
-        car_0_viz: true
+        car_1: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: /ppc_markers
+      Name: Marker
+      Namespaces:
+        car_1: true
       Queue Size: 100
       Value: true
   Enabled: true
@@ -145,4 +153,4 @@ Window Geometry:
     collapsed: false
   Width: 3298
   X: 67
-  Y: 60
+  Y: 30

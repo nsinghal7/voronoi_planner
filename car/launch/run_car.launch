@@ -1,10 +1,15 @@
 <launch>
-  <arg name="nr" default="1" />
+  <arg name="nr" />
+
+  <rosparam command="load" file="$(find car)/param/car_params.yaml" />
+  <param name="odom_topic" value="$(eval '/car_' + str(arg('nr'))+ '/odom')" />
+  <param name="control_topic" value="$(eval '/car_' + str(arg('nr')) + '/control')" />
+
   <node name="car" pkg="car" type="car_node" output="screen">
     <param name="car_num" value="$(eval arg('nr'))" />
   </node>
 
-  <node name="pp_controller" pkg="car" type="pure_pursuit_controller_node" output="screen" ns="car">
+  <node name="pp_controller" pkg="car" type="pure_pursuit_controller_node" output="screen">
     <param name="car_num" value="$(eval arg('nr'))" />
   </node>
 </launch>

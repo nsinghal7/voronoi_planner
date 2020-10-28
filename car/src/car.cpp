@@ -9,6 +9,7 @@
 #include <ackermann_msgs/AckermannDrive.h>
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/Marker.h>
+#include "car/car_param_parser.h"
 
 #include <cmath>
 #include <math.h>
@@ -32,16 +33,10 @@ class CarNode {
   double v_;
   double delta_; // steering angle
 
-  double L_ = 0.7; // length between wheels/wheelbase
-  double lfw_ = 0.15; // length ahead of rear wheel to plan from
-  double max_accel_ = 1; // m/s^2
-  double max_vel_ = 8; // m/s
-  double width_ = 0.3;
-  double length_ = 0.8;
-  double height_ = 0.15; // doesn't matter
+  double desired_speed_;
+  double desired_steering_angle_;
 
-  double desired_steering_angle_ = .1; // rad
-  double desired_speed_ = 1; // m/s
+  CarParamParser params_;
 
   ros::Time last_step_;
 
@@ -51,13 +46,14 @@ class CarNode {
 public:
   CarNode(): x_(0), y_(0), theta_(0), v_(0), delta_(0), nh_("~") {
     nh_.getParam("car_num", car_num_);
+    params_.parse(nh_);
     std::cout << "found car num: " << car_num_ << std::endl;
     car_name_ = "car_" + std::to_string(car_num_);
-    control_sub_ = nh_.subscribe("/" + car_name_ + "/control", 1, &CarNode::onControl, this);
+    control_sub_ = nh_.subscribe(params_.control_topic, 1, &CarNode::onControl, this);
     car_marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/car_markers", 1, this);
-    odom_pub_ = nh_.advertise<nav_msgs::Odometry>("/" + car_name_ + "/odom", 1, this);
+    odom_pub_ = nh_.advertise<nav_msgs::Odometry>(params_.odom_topic, 1, this);
     last_step_ = ros::Time::now();
-    timer_ = nh_.createTimer(ros::Duration(1/hz_), &CarNode::simLoop, this);
+    timer_ = nh_.createTimer(ros::Duration(1/params_.hz), &CarNode::simLoop, this);
   }
 
   void onControl(const ackermann_msgs::AckermannDrive& control) {
@@ -74,13 +70,14 @@ public:
     x_ += cos(theta_)*v_*dt;
     y_ += sin(theta_)*v_*dt;
     delta_ = desired_steering_angle_; // for now it updates immediately
-    theta_ += v_*tan(delta_)/L_*dt;
+    delta_ = std::max(-params_.max_delta, std::min(params_.max_delta, delta_));
+    theta_ += v_*tan(delta_)/params_.L*dt;
     theta_ = fmod(theta_, 2*PI);
 
     if(desired_speed_ < v_) {
-      v_ = std::max(-max_vel_, std::max(v_ - max_accel_*dt, desired_speed_));
+      v_ = std::max(-params_.max_vel, std::max(v_ - params_.max_accel*dt, desired_speed_));
     } else {
-      v_ = std::min(max_vel_, std::min(v_ + max_accel_*dt, desired_speed_));
+      v_ = std::min(params_.max_vel, std::min(v_ + params_.max_accel*dt, desired_speed_));
     }
 
     geometry_msgs::TransformStamped trans;
@@ -118,19 +115,19 @@ public:
     marker.header.frame_id = "world";
     marker.header.stamp = time;
     marker.ns = car_name_;
-    marker.id = 0;
+    marker.id = car_num_;
     marker.type = visualization_msgs::Marker::CUBE;
-    marker.pose.position.x = x_ + cos(theta_)*L_/2;
-    marker.pose.position.y = y_ + sin(theta_)*L_/2;
+    marker.pose.position.x = x_ + cos(theta_)*params_.L/2;
+    marker.pose.position.y = y_ + sin(theta_)*params_.L/2;
     marker.pose.position.z = 0;
     marker.pose.orientation.x = q.x();
     marker.pose.orientation.y = q.y();
     marker.pose.orientation.z = q.z();
     marker.pose.orientation.w = q.w();
-    marker.scale.x = length_;
-    marker.scale.y = width_;
-    marker.scale.z = height_;
-    marker.color.a = 1.0;
+    marker.scale.x = params_.length;
+    marker.scale.y = params_.width;
+    marker.scale.z = params_.height;
+    marker.color.a = 0.5;
     marker.color.r = 0;
     marker.color.g = 1.0;
     marker.color.b = 0;

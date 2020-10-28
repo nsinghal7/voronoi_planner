@@ -1,5 +1,5 @@
 <launch>
-  <arg name="nr" default="1" />
+  <arg name="nr" />
   <include file="$(find car)/launch/run_car.launch" ns="$(eval 'car_' + str(arg('nr')))">
     <arg name="nr" value="$(eval arg('nr'))" />
   </include>

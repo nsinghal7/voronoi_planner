@@ -1,7 +1,12 @@
 <launch>
-  <arg name="nr" default="1" />
+  <arg name="n" default="1" />
+  <arg name="formation" default="circle" />
+
+  <param name="all_cars/formation" value="$(eval arg('formation'))" />
+  <param name="all_cars/n_cars" value="$(eval arg('n'))" />
+
   <include file="$(find car)/launch/multi_car.launch">
-    <arg name="nr" value="$(eval arg('nr'))" />
+    <arg name="nr" value="$(eval arg('n'))" />
   </include>
 
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find car)/rviz/car.rviz" />
