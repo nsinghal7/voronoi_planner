@@ -23,6 +23,7 @@ public:
 
   std::string formation;
   int n_cars;
+  bool autostart;
 
   void parse(ros::NodeHandle nh) {
     std::string key;
@@ -56,6 +57,7 @@ public:
 
     nh.getParam("/all_cars/formation", formation);
     nh.getParam("/all_cars/n_cars", n_cars);
+    nh.getParam("/all_cars/autostart", autostart);
   }
 };
 

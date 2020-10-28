@@ -65,8 +65,12 @@ public:
     control_sub_ = nh_.subscribe(params_.control_topic, 1, &CarNode::onControl, this);
     car_marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/car_markers", 1, this);
     odom_pub_ = nh_.advertise<nav_msgs::Odometry>(params_.odom_topic, 1, this);
-    start_sub_ = nh_.subscribe("/initialpose", 1, &CarNode::onStart, this);
-    visualize();
+    if(params_.autostart) {
+      onStart(geometry_msgs::PoseWithCovarianceStamped());
+    } else {
+      start_sub_ = nh_.subscribe("/initialpose", 1, &CarNode::onStart, this);
+      visualize();
+    }
   }
 
   void onStart(const geometry_msgs::PoseWithCovarianceStamped& ignored) {

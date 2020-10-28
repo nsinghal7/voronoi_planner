@@ -1,9 +1,11 @@
 <launch>
   <arg name="n" default="1" />
   <arg name="formation" default="fixed_circle_opposite" />
+  <arg name="autostart" default="false" />
 
   <param name="all_cars/formation" value="$(eval arg('formation'))" />
   <param name="all_cars/n_cars" value="$(eval arg('n'))" />
+  <param name="all_cars/autostart" value="$(arg autostart)" />
 
   <include file="$(find car)/launch/multi_car.launch">
     <arg name="nr" value="$(eval arg('n'))" />
