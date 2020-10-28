@@ -108,7 +108,7 @@ public:
     geometry_msgs::TransformStamped trans;
     trans.header.stamp = time;
     trans.header.frame_id = "world";
-    trans.child_frame_id = car_name_ + "_baselink";
+    trans.child_frame_id = params_.baselink_frame;
     trans.transform.translation.x = x_;
     trans.transform.translation.y = y_;
     trans.transform.translation.z = 0;
@@ -123,7 +123,7 @@ public:
     nav_msgs::Odometry odom;
     odom.header.stamp = time;
     odom.header.frame_id = "world";
-    odom.child_frame_id = car_name_ + "_baselink";
+    odom.child_frame_id = params_.baselink_frame;
     odom.pose.pose.position.x = x_;
     odom.pose.pose.position.y = y_;
     odom.pose.pose.position.z = 0;

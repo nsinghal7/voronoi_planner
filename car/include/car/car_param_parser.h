@@ -20,6 +20,7 @@ public:
 
   std::string odom_topic;
   std::string control_topic;
+  std::string baselink_frame;
 
   std::string formation;
   int n_cars;
@@ -54,6 +55,8 @@ public:
     nh.getParam(key, odom_topic);
     nh.searchParam("control_topic", key);
     nh.getParam(key, control_topic);
+    nh.searchParam("baselink_frame", key);
+    nh.getParam(key, baselink_frame);
 
     nh.getParam("/all_cars/formation", formation);
     nh.getParam("/all_cars/n_cars", n_cars);

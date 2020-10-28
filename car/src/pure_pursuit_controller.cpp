@@ -88,7 +88,7 @@ public:
     control_pub_.publish(control);
 
     visualization_msgs::Marker marker;
-    marker.header.frame_id = car_name_ + "_baselink";
+    marker.header.frame_id = params_.baselink_frame;
     marker.header.stamp = ros::Time::now();
     marker.ns = car_name_;
     marker.id = car_num_*3;
@@ -116,7 +116,7 @@ public:
     marker_pub_.publish(marker);
 
     marker.id++;
-    marker.header.frame_id = car_name_ + "_baselink";
+    marker.header.frame_id = params_.baselink_frame;
     marker.pose.position.x = params_.lfw + cos(eta_orig) * L_fw;
     marker.pose.position.y = sin(eta) * L_fw;
     marker.pose.position.z = 0;
