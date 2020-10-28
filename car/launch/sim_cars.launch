@@ -1,6 +1,6 @@
 <launch>
   <arg name="n" default="1" />
-  <arg name="formation" default="circle" />
+  <arg name="formation" default="fixed_circle_opposite" />
 
   <param name="all_cars/formation" value="$(eval arg('formation'))" />
   <param name="all_cars/n_cars" value="$(eval arg('n'))" />

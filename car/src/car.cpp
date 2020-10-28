@@ -10,10 +10,13 @@
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/Marker.h>
 #include "car/car_param_parser.h"
+#include "car/formation_gen.h"
 
 #include <cmath>
 #include <math.h>
 #define PI M_PI
+
+namespace car {
 
 class CarNode {
   ros::NodeHandle nh_;
@@ -44,11 +47,18 @@ class CarNode {
   std::string car_name_;
 
 public:
-  CarNode(): x_(0), y_(0), theta_(0), v_(0), delta_(0), nh_("~") {
+  CarNode(): nh_("~") {
     nh_.getParam("car_num", car_num_);
     params_.parse(nh_);
     std::cout << "found car num: " << car_num_ << std::endl;
     car_name_ = "car_" + std::to_string(car_num_);
+    auto spec = generateFormationSpec(params_.formation, car_num_, params_.n_cars, params_);
+    x_ = spec.start_x;
+    y_ = spec.start_y;
+    theta_ = spec.start_theta;
+    v_ = spec.start_v;
+    delta_ = spec.start_delta;
+
     control_sub_ = nh_.subscribe(params_.control_topic, 1, &CarNode::onControl, this);
     car_marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/car_markers", 1, this);
     odom_pub_ = nh_.advertise<nav_msgs::Odometry>(params_.odom_topic, 1, this);
@@ -141,4 +151,6 @@ int main(int argc, char** argv) {
   CarNode n;
   ros::spin();
 }
+
+} // namespace car
 

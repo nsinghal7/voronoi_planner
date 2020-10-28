@@ -9,10 +9,13 @@
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/Marker.h>
 #include "car/car_param_parser.h"
+#include "car/formation_gen.h"
 
 #include <cmath>
 #include <math.h>
 #define PI M_PI
+
+namespace car {
 
 class PurePursuitControllerNode {
   ros::NodeHandle nh_;
@@ -31,12 +34,15 @@ class PurePursuitControllerNode {
   std::string car_name_;
 
 public:
-  PurePursuitControllerNode(): nh_("~"), goal_x_(5), goal_y_(5)  {
+  PurePursuitControllerNode(): nh_("~") {
     // TODO: set initial and goal poses based on a common generator
     nh_.getParam("car_num", car_num_);
     params_.parse(nh_);
     std::cout << "controller found car num: " << car_num_ << std::endl;
     car_name_ = "car_" + std::to_string(car_num_);
+    auto spec = generateFormationSpec(params_.formation, car_num_, params_.n_cars, params_);
+    goal_x_ = spec.goal_x;
+    goal_y_ = spec.goal_y;
 
     odom_sub_ = nh_.subscribe(params_.odom_topic, 1, &PurePursuitControllerNode::onOdom, this);
     control_pub_ = nh_.advertise<ackermann_msgs::AckermannDrive>(params_.control_topic, 1, this);
@@ -113,3 +119,6 @@ int main(int argc, char** argv) {
   PurePursuitControllerNode n;
   ros::spin();
 }
+
+} // namespace car
+

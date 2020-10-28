@@ -1,5 +1,7 @@
 #include <ros/ros.h>
 
+namespace car {
+
 class CarParamParser {
 public:
   double L;
@@ -54,3 +56,6 @@ public:
     nh.getParam("/all_cars/n_cars", n_cars);
   }
 };
+
+} // namespace car
+
