@@ -24,7 +24,7 @@ public:
     odoms_.resize(n_cars);
     for(int i = 1; i <= n_cars; i++) {
       odom_subs_.push_back(nh_.subscribe<nav_msgs::Odometry>("/car_" + std::to_string(i) + "/odom", 1, [i, this] (const boost::shared_ptr<const nav_msgs::Odometry> odom) -> void {
-              this->odoms_.at(i) = *odom;
+              this->odoms_.at(i - 1) = *odom;
             }));
     }
 

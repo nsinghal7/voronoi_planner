@@ -16,6 +16,7 @@ public:
   double height;
   double lookahead_dist;
   double lookahead_time;
+  double voronoi_buffer;
   double sim_hz;
   double traj_hz;
 
@@ -53,6 +54,8 @@ public:
     nh.getParam(key, lookahead_dist);
     nh.searchParam("lookahead_time", key);
     nh.getParam(key, lookahead_time);
+    nh.searchParam("voronoi_buffer", key);
+    nh.getParam(key, voronoi_buffer);
     nh.searchParam("sim_hz", key);
     nh.getParam(key, sim_hz);
     nh.searchParam("traj_hz", key);

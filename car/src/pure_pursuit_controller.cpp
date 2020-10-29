@@ -61,6 +61,80 @@ public:
     traj_index_ = 0;
   }
 
+  double calcDelta(double eta, double L_fw) {
+    return atan2(params_.L*sin(eta), L_fw / 2 + params_.lfw * cos(eta));
+  }
+
+  std::tuple<double, double> toRelativePos(double x, double y, double theta, double ox, double oy, bool include_lfw) {
+    const double lfw_temp = include_lfw ? params_.lfw : 0;
+    const double dx_g = ox - x - cos(theta) * lfw_temp;
+    const double dy_g = oy - y - sin(theta) * lfw_temp;
+    const double dx_r = dx_g * cos(theta) + dy_g * sin(theta);
+    const double dy_r = -dx_g * sin(theta) + dy_g * cos(theta);
+    return std::make_tuple(dx_r, dy_r);
+  }
+
+  std::tuple<double, double> toGlobalPos(double x, double y, double theta, double rx, double ry, bool include_lfw) {
+    const double lfw_temp = include_lfw ? params_.lfw : 0;
+    const double dx_g = rx * cos(theta) - ry * sin(theta);
+    const double dy_g = rx * sin(theta) + ry * cos(theta);
+    const double ox = dx_g + cos(theta) * lfw_temp + x;
+    const double oy = dy_g + sin(theta) * lfw_temp + y;
+    return std::make_tuple(ox, oy);
+  }
+
+  std::tuple<double, double, double, double> toPose(const nav_msgs::Odometry& odom) {
+    const double x = odom.pose.pose.position.x;
+    const double y = odom.pose.pose.position.y;
+    tf2::Quaternion q;
+    tf2::fromMsg(odom.pose.pose.orientation, q);
+    const double theta = tf2::getYaw(q);
+    const double v = odom.twist.twist.linear.x;
+    return std::make_tuple(x, y, theta, v);
+  }
+
+  double etaWithObstacles(const double eta, const double L_fw, double x, double y, const double theta) {
+    if(all_odoms_.size() <= 1) {
+      return eta;
+    }
+    x += cos(theta) * params_.lfw;
+    y += sin(theta) * params_.lfw;
+    double look_x, look_y;
+    std::tie(look_x, look_y) = toGlobalPos(x, y, theta, cos(eta)*L_fw, sin(eta)*L_fw, false);
+    int iter_count = 0;
+    int start_index = params_.car_num;
+    for(int index = (params_.car_num + 1) % all_odoms_.size(); index != start_index; index = (index + 1) % all_odoms_.size()) {
+      if(index >= 50) {
+        // no progress. give up
+        std::cerr << "etaWithObstacles went 50 its without success\n";
+        throw "no viable eta";
+      }
+      if(index == params_.car_num) {
+        continue;
+      }
+      double ox, oy, otheta, ov;
+      std::tie(ox, oy, otheta, ov) = toPose(all_odoms_.at(index));
+      double sep_dist = sqrt(pow(ox - x, 2) + pow(oy - y, 2) + 1e-12);
+      double sep_vx = (ox - x) / sep_dist;
+      double sep_vy = (oy - y) / sep_dist;
+      double look_xr = look_x - x, look_yr = look_y - y;
+      double dist_along_bisector = look_xr * sep_vx + look_yr * sep_vy;
+      if(dist_along_bisector > sep_dist / 2 - params_.voronoi_buffer) {
+        // TODO: illegal eta. modify
+        dist_along_bisector = sep_dist / 2 - params_.voronoi_buffer;
+        if(dist_along_bisector < -L_fw) {
+          dist_along_bisector = -L_fw;
+        }
+        double dist_to_right = sqrt(L_fw*L_fw - dist_along_bisector*dist_along_bisector + 1e-12);
+        look_x = sep_vx * dist_along_bisector + sep_vy * dist_to_right;
+        look_y = -sep_vx * dist_to_right + sep_vy * dist_along_bisector;
+      }
+    }
+    double look_xr, look_yr;
+    std::tie(look_xr, look_yr) = toRelativePos(x, y, theta, look_x, look_y, false);
+    return  atan2(look_yr, look_xr);
+  }
+
   void onOdom(const nav_msgs::Odometry& odom) {
     double goal_x;
     double goal_y;
@@ -72,20 +146,16 @@ public:
       goal_x = traj_.points.at(traj_index_).positions.at(0);
       goal_y = traj_.points.at(traj_index_).positions.at(1);
     }
-    const double x = odom.pose.pose.position.x;
-    const double y = odom.pose.pose.position.y;
-    tf2::Quaternion q;
-    tf2::fromMsg(odom.pose.pose.orientation, q);
-    const double theta = tf2::getYaw(q);
-    const double v = odom.twist.twist.linear.x;
+    double x, y, theta, v;
+    std::tie(x, y, theta, v) = toPose(odom);
 
     // Because the goal traj always contains current position, this is exact dist to lookahead point
-    double L_fw= params_.lookahead_dist + params_.lookahead_time * v; // TODO what happens if this is negative?
+    const double L_fw= params_.lookahead_dist + params_.lookahead_time * v; // TODO what happens if this is negative?
     
-    double dx_g = (goal_x - x - cos(theta)*params_.lfw), dy_g = (goal_y - y - sin(theta)*params_.lfw);
-    double dx_r = dx_g * cos(theta) + dy_g * sin(theta);
-    double dy_r = -dx_g * sin(theta) + dy_g * cos(theta);
-    const double eta_orig = atan2(dy_r, dx_r);
+    double dx_r, dy_r;
+    std::tie(dx_r, dy_r) = toRelativePos(x, y, theta, goal_x, goal_y, true);
+    double eta_orig = etaWithObstacles(atan2(dy_r, dx_r), L_fw, x, y, theta);
+
     double v_des = params_.max_vel; // TODO choose better desired velocity and allow parameterization
     const double goal_dist = sqrt(dx_r*dx_r+dy_r*dy_r+1e-12);
     if(v*v/2/goal_dist < params_.max_accel) {
@@ -109,7 +179,7 @@ public:
         eta = eta + PI;
       }
     }
-    double delta = atan2(params_.L*sin(eta), L_fw / 2 + params_.lfw * cos(eta)); // guaranteed to be 1st/4th quad if lookahead/2>lfw
+    double delta = calcDelta(eta, L_fw);
 
     ackermann_msgs::AckermannDrive control;
     control.steering_angle = delta;
