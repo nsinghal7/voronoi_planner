@@ -147,6 +147,65 @@ public:
     throw "no viable eta";
   }
 
+  void vizCellBoundary(const double x, const double y) {
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = "world";
+    marker.header.stamp = ros::Time::now();
+    marker.ns = params_.car_name + "/cell";
+    marker.id = params_.car_num* 4 + 4;
+    marker.type = visualization_msgs::Marker::LINE_LIST;
+    marker.pose.position.x = x;
+    marker.pose.position.y = y;
+    marker.pose.position.z = 0;
+    marker.scale.x = .1;
+    marker.color.a = 1;
+    marker.color.r = 1;
+    marker.color.g = 0;
+    marker.color.b = 0;
+
+    double mx, my, mtheta, mv;
+    if(all_odoms_.size() < params_.car_num) {
+      return;
+    }
+    std::tie(mx, my, mtheta, mv) = toPose(all_odoms_.at(params_.car_num - 1));
+
+    for(int index = 0; index < all_odoms_.size(); index++) {
+      if(index == params_.car_num - 1) {
+        continue;
+      }
+      double ox, oy, otheta, ov;
+      std::tie(ox, oy, otheta, ov) = toPose(all_odoms_.at(index));
+      double dx = ox - mx, dy = oy - my;
+      double dist = sqrt(dx*dx + dy * dy + 1e-12);
+      double vx = dx / dist, vy = dy / dist;
+      dx -= vx * params_.voronoi_buffer;
+      dy -= vy * params_.voronoi_buffer;
+      double x1 = dx / 2 - vy * 2, y1 = dy / 2 + vx * 2;
+      double x2 = dx / 2 + vy * 2, y2 = dy / 2 - vx * 2;
+      double x3 = dx / 2, y3 = dy / 2;
+      double x4 = dx / 2 - vx / 2, y4 = dy / 2 - dy / 2;
+      geometry_msgs::Point pt;
+      pt.x = x1;
+      pt.y = y1;
+      pt.z = 0;
+      marker.points.push_back(pt);
+      pt.x = x2;
+      pt.y = y2;
+      pt.z = 0;
+      marker.points.push_back(pt);
+      pt.x = x3;
+      pt.y = y3;
+      pt.z = 0;
+      marker.points.push_back(pt);
+      pt.x = x4;
+      pt.y = y4;
+      pt.z = 0;
+      marker.points.push_back(pt);
+    }
+
+    marker_pub_.publish(marker);
+  }
+
   void onOdom(const nav_msgs::Odometry& odom) {
     double goal_x;
     double goal_y;
@@ -202,7 +261,7 @@ public:
     marker.header.frame_id = params_.baselink_frame;
     marker.header.stamp = ros::Time::now();
     marker.ns = params_.car_name;
-    marker.id = params_.car_num*3;
+    marker.id = params_.car_num* 4;
     marker.type = visualization_msgs::Marker::SPHERE;
     marker.pose.position.x = params_.lfw + cos(eta) * L_fw;
     marker.pose.position.y = sin(eta) * L_fw;
@@ -235,6 +294,7 @@ public:
     marker.color.g = 0;
     marker.color.b = 1;
     marker_pub_.publish(marker);
+    vizCellBoundary(x, y);
   }
 
 };
