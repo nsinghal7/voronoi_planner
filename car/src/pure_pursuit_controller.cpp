@@ -9,6 +9,7 @@
 #include <ackermann_msgs/AckermannDrive.h>
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/Marker.h>
+#include <trajectory_msgs/JointTrajectory.h>
 #include "car/car_param_parser.h"
 #include "car/formation_gen.h"
 
@@ -27,21 +28,13 @@ class PurePursuitControllerNode {
 
   CarParamParser params_;
 
-  double goal_x_;
-  double goal_y_;
+  trajectory_msgs::JointTrajectory traj_;
   bool backing_up_ = false;
-
-  int car_num_;
-
-  std::string car_name_;
 
 public:
   PurePursuitControllerNode(): nh_("~") {
-    nh_.getParam("car_num", car_num_);
     params_.parse(nh_);
-    std::cout << "controller found car num: " << car_num_ << std::endl;
-    car_name_ = "car_" + std::to_string(car_num_);
-    auto spec = generateFormationSpec(params_.formation, car_num_, params_.n_cars, params_);
+    auto spec = generateFormationSpec(params_);
     goal_x_ = spec.goal_x;
     goal_y_ = spec.goal_y;
 
@@ -90,8 +83,8 @@ public:
     visualization_msgs::Marker marker;
     marker.header.frame_id = params_.baselink_frame;
     marker.header.stamp = ros::Time::now();
-    marker.ns = car_name_;
-    marker.id = car_num_*3;
+    marker.ns = params_.car_name;
+    marker.id = params_.car_num*3;
     marker.type = visualization_msgs::Marker::SPHERE;
     marker.pose.position.x = params_.lfw + cos(eta) * L_fw;
     marker.pose.position.y = sin(eta) * L_fw;

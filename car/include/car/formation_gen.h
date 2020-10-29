@@ -19,7 +19,10 @@ typedef struct {
   double goal_y;
 } FormationSpec;
 
-FormationSpec generateFormationSpec(std::string formation, int car_num, int n_cars, CarParamParser& params) {
+FormationSpec generateFormationSpec(CarParamParser& params) {
+  auto formation = params.formation;
+  int n_cars = params.n_cars;
+  int car_num = params.car_num;
   if(formation == "fixed_circle_opposite") {
     double angle = 2 * PI * car_num / n_cars;
     double radius = 8;

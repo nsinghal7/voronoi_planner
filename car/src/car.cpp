@@ -46,16 +46,10 @@ class CarNode {
 
   ros::Time last_step_;
 
-  int car_num_;
-  std::string car_name_;
-
 public:
   CarNode(): nh_("~") {
-    nh_.getParam("car_num", car_num_);
     params_.parse(nh_);
-    std::cout << "found car num: " << car_num_ << std::endl;
-    car_name_ = "car_" + std::to_string(car_num_);
-    auto spec = generateFormationSpec(params_.formation, car_num_, params_.n_cars, params_);
+    auto spec = generateFormationSpec(params_);
     x_ = spec.start_x;
     y_ = spec.start_y;
     theta_ = spec.start_theta;
@@ -75,7 +69,7 @@ public:
 
   void onStart(const geometry_msgs::PoseWithCovarianceStamped& ignored) {
     last_step_ = ros::Time::now();
-    timer_ = nh_.createTimer(ros::Duration(1/params_.hz), &CarNode::simLoop, this);
+    timer_ = nh_.createTimer(ros::Duration(1/params_.sim_hz), &CarNode::simLoop, this);
   }
 
   void onControl(const ackermann_msgs::AckermannDrive& control) {
@@ -139,8 +133,8 @@ public:
     visualization_msgs::Marker marker;
     marker.header.frame_id = "world";
     marker.header.stamp = time;
-    marker.ns = car_name_;
-    marker.id = car_num_;
+    marker.ns = params_.car_name;
+    marker.id = params_.car_num;
     marker.type = visualization_msgs::Marker::CUBE;
     marker.pose.position.x = x_ + cos(theta_)*params_.L/2;
     marker.pose.position.y = y_ + sin(theta_)*params_.L/2;

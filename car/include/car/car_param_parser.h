@@ -16,11 +16,15 @@ public:
   double height;
   double lookahead_dist;
   double lookahead_time;
-  double hz;
+  double sim_hz;
+  double traj_hz;
 
   std::string odom_topic;
   std::string control_topic;
   std::string baselink_frame;
+
+  int car_num;
+  std::string car_name;
 
   std::string formation;
   int n_cars;
@@ -49,7 +53,9 @@ public:
     nh.searchParam("lookahead_time", key);
     nh.getParam(key, lookahead_time);
     nh.searchParam("sim_hz", key);
-    nh.getParam(key, hz);
+    nh.getParam(key, sim_hz);
+    nh.searchParam("traj_hz", key);
+    nh.getParam(key, traj_hz);
 
     nh.searchParam("odom_topic", key);
     nh.getParam(key, odom_topic);
@@ -57,6 +63,9 @@ public:
     nh.getParam(key, control_topic);
     nh.searchParam("baselink_frame", key);
     nh.getParam(key, baselink_frame);
+
+    nh.getParam("car_num", car_num);
+    car_name = "car_" + std::to_string(car_num);
 
     nh.getParam("/all_cars/formation", formation);
     nh.getParam("/all_cars/n_cars", n_cars);
