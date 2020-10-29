@@ -97,14 +97,17 @@ public:
       // backwards goal. I choose to turn the nose towards the goal rather than backing up to it
       backing_up_ = true;
       v_des *= -1;
+    } else {
+      // not backing up
+      backing_up_ = false;
+    }
+    if(v < 0 || (v == 0 && v_des < 0)) {
+      // vehicle is moving backwards (whether desired or not), so reverse steering to point to goal
       if(eta > 0) {
         eta = eta - PI;
       } else {
         eta = eta + PI;
       }
-    } else {
-      // not backing up
-      backing_up_ = false;
     }
     double delta = atan2(params_.L*sin(eta), L_fw / 2 + params_.lfw * cos(eta)); // guaranteed to be 1st/4th quad if lookahead/2>lfw
 
