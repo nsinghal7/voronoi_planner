@@ -9,4 +9,4 @@ height: 0.15
 sim_hz: 30
 lookahead_dist: 1
 lookahead_time: 0.1
-voronoi_buffer: 0.5
+voronoi_buffer: 1
