@@ -33,8 +33,8 @@ FormationSpec generateFormationSpec(CarParamParser& params) {
       .start_v = 0,
       .start_delta = 0,
       
-      .goal_x = -cos(angle) * radius,
-      .goal_y = -sin(angle) * radius,
+      .goal_x = cos(angle + PI) * radius,
+      .goal_y = sin(angle + PI) * radius,
     };
     return spec;
   } else if(formation == "sized_circle_opposite") {
@@ -47,8 +47,8 @@ FormationSpec generateFormationSpec(CarParamParser& params) {
       .start_v = 0,
       .start_delta = 0,
 
-      .goal_x = -cos(angle) * radius,
-      .goal_y = -sin(angle) * radius,
+      .goal_x = cos(angle + PI) * radius,
+      .goal_y = sin(angle + PI) * radius,
     };
     return spec;
   } else {
