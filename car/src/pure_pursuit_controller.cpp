@@ -100,43 +100,51 @@ public:
     x += cos(theta) * params_.lfw;
     y += sin(theta) * params_.lfw;
     double look_x, look_y;
-    std::tie(look_x, look_y) = toGlobalPos(x, y, theta, cos(eta)*L_fw, sin(eta)*L_fw, false);
-    int iter_count = 0;
-    int start_index = params_.car_num - 1;
-    for(int index = params_.car_num % all_odoms_.size(); index != start_index; index = (index + 1) % all_odoms_.size()) {
-      if(iter_count >= 50) {
-        // no progress. give up
-        std::cerr << "etaWithObstacles went 50 its without success\n";
-        throw "no viable eta";
-      }
-      iter_count++;
-      if(index == params_.car_num - 1) {
-        continue;
-      }
-      double ox, oy, otheta, ov;
-      std::tie(ox, oy, otheta, ov) = toPose(all_odoms_.at(index));
-      double sep_dist = sqrt(pow(ox - x, 2) + pow(oy - y, 2) + 1e-12);
-      double sep_vx = (ox - x) / sep_dist;
-      double sep_vy = (oy - y) / sep_dist;
-      double look_xr = look_x - x, look_yr = look_y - y;
-      double dist_along_bisector = look_xr * sep_vx + look_yr * sep_vy;
-      if(dist_along_bisector > sep_dist / 2 - params_.voronoi_buffer) {
-        // TODO: illegal eta. modify
-        dist_along_bisector = sep_dist / 2 - params_.voronoi_buffer;
-        if(dist_along_bisector < -L_fw) {
-          dist_along_bisector = -L_fw;
+    for(int side = 1; side > -2; side -= 2) {
+      std::tie(look_x, look_y) = toGlobalPos(x, y, theta, cos(eta)*L_fw, sin(eta)*L_fw, false);
+      int iter_count = 0;
+      int start_index = params_.car_num - 1;
+      bool fail = false;
+      for(int index = params_.car_num % all_odoms_.size(); index != start_index; index = (index + 1) % all_odoms_.size()) {
+        if(iter_count >= 50) {
+          // no progress.
+          std::cerr << "etaWithObstacles went 50 its without success on side: " << side << std::endl;
+          fail = true;
+          break;
         }
-        double dist_to_right = sqrt(L_fw*L_fw - dist_along_bisector*dist_along_bisector + 1e-12);
-        look_x = sep_vx * dist_along_bisector + sep_vy * dist_to_right;
-        look_y = -sep_vx * dist_to_right + sep_vy * dist_along_bisector;
-
-        // update start_index since this was a 'fail'
-        start_index = index;
+        iter_count++;
+        if(index == params_.car_num - 1) {
+          continue;
+        }
+        double ox, oy, otheta, ov;
+        std::tie(ox, oy, otheta, ov) = toPose(all_odoms_.at(index));
+        double sep_dist = sqrt(pow(ox - x, 2) + pow(oy - y, 2) + 1e-12);
+        double sep_vx = (ox - x) / sep_dist;
+        double sep_vy = (oy - y) / sep_dist;
+        double look_xr = look_x - x, look_yr = look_y - y;
+        double dist_along_bisector = look_xr * sep_vx + look_yr * sep_vy;
+        if(dist_along_bisector > sep_dist / 2 - params_.voronoi_buffer) {
+          // TODO: illegal eta. modify
+          dist_along_bisector = sep_dist / 2 - params_.voronoi_buffer;
+          if(dist_along_bisector < -L_fw) {
+            dist_along_bisector = -L_fw;
+          }
+          double dist_to_right = sqrt(L_fw*L_fw - dist_along_bisector*dist_along_bisector + 1e-12);
+          look_x = sep_vx * dist_along_bisector + side * sep_vy * dist_to_right;
+          look_y = -side * sep_vx * dist_to_right + sep_vy * dist_along_bisector;
+  
+          // update start_index since this was a 'fail'
+          start_index = index;
+        }
       }
+      if(fail) {
+        continue; // try the left side
+      }
+      double look_xr, look_yr;
+      std::tie(look_xr, look_yr) = toRelativePos(x, y, theta, look_x, look_y, false);
+      return  atan2(look_yr, look_xr);
     }
-    double look_xr, look_yr;
-    std::tie(look_xr, look_yr) = toRelativePos(x, y, theta, look_x, look_y, false);
-    return  atan2(look_yr, look_xr);
+    throw "no viable eta";
   }
 
   void onOdom(const nav_msgs::Odometry& odom) {
