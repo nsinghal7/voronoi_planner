@@ -102,14 +102,15 @@ public:
     double look_x, look_y;
     std::tie(look_x, look_y) = toGlobalPos(x, y, theta, cos(eta)*L_fw, sin(eta)*L_fw, false);
     int iter_count = 0;
-    int start_index = params_.car_num;
-    for(int index = (params_.car_num + 1) % all_odoms_.size(); index != start_index; index = (index + 1) % all_odoms_.size()) {
-      if(index >= 50) {
+    int start_index = params_.car_num - 1;
+    for(int index = params_.car_num % all_odoms_.size(); index != start_index; index = (index + 1) % all_odoms_.size()) {
+      if(iter_count >= 50) {
         // no progress. give up
         std::cerr << "etaWithObstacles went 50 its without success\n";
         throw "no viable eta";
       }
-      if(index == params_.car_num) {
+      iter_count++;
+      if(index == params_.car_num - 1) {
         continue;
       }
       double ox, oy, otheta, ov;
@@ -128,6 +129,9 @@ public:
         double dist_to_right = sqrt(L_fw*L_fw - dist_along_bisector*dist_along_bisector + 1e-12);
         look_x = sep_vx * dist_along_bisector + sep_vy * dist_to_right;
         look_y = -sep_vx * dist_to_right + sep_vy * dist_along_bisector;
+
+        // update start_index since this was a 'fail'
+        start_index = index;
       }
     }
     double look_xr, look_yr;
@@ -150,7 +154,7 @@ public:
     std::tie(x, y, theta, v) = toPose(odom);
 
     // Because the goal traj always contains current position, this is exact dist to lookahead point
-    const double L_fw= params_.lookahead_dist + params_.lookahead_time * v; // TODO what happens if this is negative?
+    const double L_fw= params_.lookahead_dist + params_.lookahead_time * abs(v); // TODO what happens if this is negative?
     
     double dx_r, dy_r;
     std::tie(dx_r, dy_r) = toRelativePos(x, y, theta, goal_x, goal_y, true);
