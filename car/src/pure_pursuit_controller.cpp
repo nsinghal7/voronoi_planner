@@ -10,6 +10,7 @@
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/Marker.h>
 #include <trajectory_msgs/JointTrajectory.h>
+#include <car/OdomArray.h>
 #include "car/car_param_parser.h"
 #include "car/formation_gen.h"
 
@@ -51,7 +52,7 @@ public:
     marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/ppc_markers", 3, this);
   }
 
-  void onOdomArray(const OdomArray& odoms) {
+  void onOdomArray(const car::OdomArray& odoms) {
     all_odoms_ = odoms.odoms;
   }
 

@@ -144,6 +144,8 @@ include_directories(
 # add_executable(${PROJECT_NAME}_node src/car_node.cpp)
 add_executable(car_node src/car.cpp)
 add_executable(pure_pursuit_controller_node src/pure_pursuit_controller.cpp)
+add_executable(odom_collector_node src/odom_collector.cpp)
+add_executable(voronoi_planner_node src/voronoi_planner.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -161,6 +163,14 @@ target_link_libraries(car_node
 )
 
 target_link_libraries(pure_pursuit_controller_node
+  ${catkin_LIBRARIES}
+)
+
+target_link_libraries(odom_collector_node
+  ${catkin_LIBRARIES}
+)
+
+target_link_libraries(voronoi_planner_node
   ${catkin_LIBRARIES}
 )
 

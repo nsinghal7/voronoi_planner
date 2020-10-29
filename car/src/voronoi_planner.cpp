@@ -6,6 +6,7 @@
 #include <nav_msgs/Odometry.h>
 #include <visualization_msgs/Marker.h>
 #include <trajectory_msgs/JointTrajectory.h>
+#include <car/OdomArray.h>
 #include "car/car_param_parser.h"
 #include "car/formation_gen.h"
 
@@ -75,7 +76,7 @@ public:
     traj.header.stamp = ros::Time::now();
     traj.joint_names.push_back("x");
     traj.joint_names.push_back("y");
-    trajectory_msgs::Point pt;
+    trajectory_msgs::JointTrajectoryPoint pt;
     pt.positions.push_back(goal_x_);
     pt.positions.push_back(goal_y_);
     traj.points.push_back(std::move(pt));

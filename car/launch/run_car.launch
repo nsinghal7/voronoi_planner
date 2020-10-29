@@ -4,8 +4,12 @@
   <rosparam command="load" file="$(find car)/param/car_params.yaml" />
   <param name="odom_topic" value="$(eval '/car_' + str(arg('nr'))+ '/odom')" />
   <param name="control_topic" value="$(eval '/car_' + str(arg('nr')) + '/control')" />
-  <param name-"traj_topic" value="$(eval '/car_' + str(arg('nr')) + '/traj')" />
+  <param name="traj_topic" value="$(eval '/car_' + str(arg('nr')) + '/traj')" />
   <param name="baselink_frame" value="$(eval 'car_' + str(arg('nr')) + '_baselink')" />
+
+  <node name="voronoi_planner" pkg="car" type="voronoi_planner_node" output="screen">
+    <param name="car_num" value="$(eval arg('nr'))" />
+  </node>
 
   <node name="car" pkg="car" type="car_node" output="screen">
     <param name="car_num" value="$(eval arg('nr'))" />
