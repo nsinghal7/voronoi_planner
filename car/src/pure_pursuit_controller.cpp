@@ -72,12 +72,12 @@ public:
       goal_x = traj_.points.at(traj_index_).positions.at(0);
       goal_y = traj_.points.at(traj_index_).positions.at(1);
     }
-    double x = odom.pose.pose.position.x;
-    double y = odom.pose.pose.position.y;
+    const double x = odom.pose.pose.position.x;
+    const double y = odom.pose.pose.position.y;
     tf2::Quaternion q;
     tf2::fromMsg(odom.pose.pose.orientation, q);
-    double theta = tf2::getYaw(q);
-    double v = odom.twist.twist.linear.x;
+    const double theta = tf2::getYaw(q);
+    const double v = odom.twist.twist.linear.x;
 
     // Because the goal traj always contains current position, this is exact dist to lookahead point
     double L_fw= params_.lookahead_dist + params_.lookahead_time * v; // TODO what happens if this is negative?
@@ -87,6 +87,11 @@ public:
     double dy_r = -dx_g * sin(theta) + dy_g * cos(theta);
     const double eta_orig = atan2(dy_r, dx_r);
     double v_des = params_.max_vel; // TODO choose better desired velocity and allow parameterization
+    const double goal_dist = sqrt(dx_r*dx_r+dy_r*dy_r+1e-12);
+    if(v*v/2/goal_dist < params_.max_accel) {
+      // reduce velocity to stop at goal, times damping factor for stability
+      v_des = 0.8* params_.max_accel*sqrt(2*goal_dist/params_.max_accel);
+    }
     double eta = eta_orig;
     if((backing_up_ && abs(eta_orig) > PI/3) || (!backing_up_ && abs(eta_orig) > PI / 2)) {
       // backwards goal. I choose to turn the nose towards the goal rather than backing up to it
