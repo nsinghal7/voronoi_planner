@@ -90,7 +90,7 @@ public:
     const double goal_dist = sqrt(dx_r*dx_r+dy_r*dy_r+1e-12);
     if(v*v/2/goal_dist < params_.max_accel) {
       // reduce velocity to stop at goal, times damping factor for stability
-      v_des = 0.8* params_.max_accel*sqrt(2*goal_dist/params_.max_accel);
+      v_des = goal_dist/(0.1+goal_dist)* params_.max_accel*sqrt(2*goal_dist/params_.max_accel);
     }
     double eta = eta_orig;
     if((backing_up_ && abs(eta_orig) > PI/3) || (!backing_up_ && abs(eta_orig) > PI / 2)) {
