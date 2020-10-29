@@ -36,15 +36,11 @@ class VoronoiPlannerNode {
   ros::NodeHandle nh_;
 
   ros::Subscriber odom_sub_;
-  std::vector<ros::Subscriber> other_pose_subs_;
   ros::Publisher traj_pub_;
-  ros::Publisher plan_marker_pub_;
   ros::Timer timer_;
 
   CarPose pose_;
 
-  std::vector<CarPose> other_poses_;
-  
   CarParamParser params_;
 
   double goal_x_;
@@ -61,28 +57,29 @@ public:
     pose_.theta = spec.start_theta;
     pose_.v = spec.start_v;
 
-    odom_sub_ = nh_.subscribe(params_.odom_topic, 1, &CarPose::extract, &pose_);
+    odom_sub_ = nh_.subscribe("/all_cars/odoms", 1, &VoronoiPlannerNode::onOdoms, this);
     traj_pub_ = nh_.advertise<trajectory_msgs::JointTrajectory>(params_.traj_topic, 1, this);
-    plan_marker_pub_ = nh_.advertise<visualization_msgs::Marker>("/plan_markers", 3, this);
 
-    other_pose_subs_.resize(params_.n_cars - 1);
-    for(int i = 1; i <= params_.n_cars; i++) {
-      if(i == params_.car_num) {
-        continue;
-      }
-      other_pose_subs_.push_back(nh_.subscribe("/car_" + std::to_string(i) + "/odom", 1, &CarPose::extract, &other_pose_subs_.at((i < params_.car_num) ? i : i - 1)));
-    }
-
-    timer_ = nh_.createTimer(ros::Duration(1/params_.traj_hz), &VoronoiPlannerNode::planLoop, this);
-    plan();
+    plan({});
   }
 
-  void planLoop(const ros::TimerEvent& t) {
-    plan();
+  void onOdoms(const OdomArray& odoms) {
+    plan(odoms.odoms);
   }
 
-  void plan() {
-    // TODO: make and publish and viz plan
+  void plan(const std::vector<nav_msgs::Odometry> odoms) {
+    // always just return the goal point
+    // TODO: maybe restrict goal within cell or account for closeness to edge
+    trajectory_msgs::JointTrajectory traj;
+    traj.header.frame_id = params_.baselink_frame;
+    traj.header.stamp = ros::Time::now();
+    traj.joint_names.push_back("x");
+    traj.joint_names.push_back("y");
+    trajectory_msgs::Point pt;
+    pt.positions.push_back(goal_x_);
+    pt.positions.push_back(goal_y_);
+    traj.points.push_back(std::move(pt));
+    traj_pub_.publish(traj);
   }
 };
 

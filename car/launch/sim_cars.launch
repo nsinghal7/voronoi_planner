@@ -6,6 +6,7 @@
   <param name="all_cars/formation" value="$(eval arg('formation'))" />
   <param name="all_cars/n_cars" value="$(eval arg('n'))" />
   <param name="all_cars/autostart" value="$(arg autostart)" />
+  <param name="all_cars/traj_hz" value="5" />
 
   <include file="$(find car)/launch/multi_car.launch">
     <arg name="nr" value="$(eval arg('n'))" />

@@ -31,8 +31,6 @@ class CarNode {
 
   tf2_ros::TransformBroadcaster br_;
 
-  double hz_ = 30;
-
   double x_;
   double y_;
   double theta_;

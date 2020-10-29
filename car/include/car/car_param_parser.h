@@ -21,6 +21,7 @@ public:
 
   std::string odom_topic;
   std::string control_topic;
+  std::string traj_topic;
   std::string baselink_frame;
 
   int car_num;
@@ -61,6 +62,8 @@ public:
     nh.getParam(key, odom_topic);
     nh.searchParam("control_topic", key);
     nh.getParam(key, control_topic);
+    nh.searchParam("traj_topic", key);
+    nh.getParam(key, traj_topic);
     nh.searchParam("baselink_frame", key);
     nh.getParam(key, baselink_frame);
 
