@@ -99,6 +99,9 @@ public:
     }
     x += cos(theta) * params_.lfw;
     y += sin(theta) * params_.lfw;
+    double mx, my, mtheta, mv;
+    std::tie(mx, my, mtheta, mv) = toPose(all_odoms_.at(params_.car_num - 1));
+
     double look_x, look_y;
     for(int side = 1; side > -2; side -= 2) {
       std::tie(look_x, look_y) = toGlobalPos(x, y, theta, cos(eta)*L_fw, sin(eta)*L_fw, false);
@@ -118,23 +121,33 @@ public:
         }
         double ox, oy, otheta, ov;
         std::tie(ox, oy, otheta, ov) = toPose(all_odoms_.at(index));
-        double sep_dist = sqrt(pow(ox - x, 2) + pow(oy - y, 2) + 1e-12);
-        double sep_vx = (ox - x) / sep_dist;
-        double sep_vy = (oy - y) / sep_dist;
-        double look_xr = look_x - x, look_yr = look_y - y;
+        double sep_dist = sqrt(pow(ox - mx, 2) + pow(oy - my, 2) + 1e-12);
+        double sep_vx = (ox - mx) / sep_dist;
+        double sep_vy = (oy - my) / sep_dist;
+        double look_xr = look_x - mx, look_yr = look_y - my;
         double dist_along_bisector = look_xr * sep_vx + look_yr * sep_vy;
         if(dist_along_bisector > sep_dist / 2 - params_.voronoi_buffer) {
-          // TODO: illegal eta. modify
+          // illegal eta. modify
           dist_along_bisector = sep_dist / 2 - params_.voronoi_buffer;
-          if(dist_along_bisector < -L_fw) {
-            dist_along_bisector = -L_fw;
+          double p_xr = x - mx, p_yr = y - my;
+          double p_dist_along_bisector = p_xr * sep_vx + p_yr * sep_vy;
+          double lfw_dist_along_bisector = dist_along_bisector - p_dist_along_bisector - 1e-4;
+          if(lfw_dist_along_bisector < -L_fw) {
+            lfw_dist_along_bisector = -L_fw;
+          } else if(lfw_dist_along_bisector > L_fw) {
+            lfw_dist_along_bisector = L_fw;
           }
-          double dist_to_right = sqrt(L_fw*L_fw - dist_along_bisector*dist_along_bisector + 1e-12);
-          look_x = sep_vx * dist_along_bisector + side * sep_vy * dist_to_right;
-          look_y = -side * sep_vx * dist_to_right + sep_vy * dist_along_bisector;
+          double dist_to_right = sqrt(L_fw*L_fw - lfw_dist_along_bisector*lfw_dist_along_bisector + 1e-12);
+          look_x = sep_vx * lfw_dist_along_bisector + side * sep_vy * dist_to_right;
+          look_y = -side * sep_vx * dist_to_right + sep_vy * lfw_dist_along_bisector;
   
           // update start_index since this was a 'fail'
           start_index = index;
+          if(params_.car_num == 1) {
+            std::cout << "look_x: " << look_x << " look_y: " << look_y << std::endl;
+          }
+        } else if(params_.car_num == 1) {
+          std::cout << "pass\n";
         }
       }
       if(fail) {
@@ -142,6 +155,7 @@ public:
       }
       double look_xr, look_yr;
       std::tie(look_xr, look_yr) = toRelativePos(x, y, theta, look_x, look_y, false);
+      std::cout << "finished\n\n\n\n\n\n\n\n\n\n";
       return  atan2(look_yr, look_xr);
     }
     throw "no viable eta";
