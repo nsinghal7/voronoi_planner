@@ -20,6 +20,28 @@
 
 namespace car {
 
+std::vector<double> get_hom_line(std::pair<double, double> o, std::pair<double, double> m, double buffer=0) {
+  double midx = (o.first + m.first) / 2, midy = (o.second + m.second) / 2;
+  double vecx = o.first - m.first, vecy = o.second - m.second;
+  double norm = hypot(vecx, vecy);
+  vecx /= norm;
+  vecy /= norm;
+  midx -= buffer*vecx;
+  midy -= buffer*vecy;
+  return {vecx, vecy, -midx*vecx - midy*vecy};
+}
+
+std::vector<double> get_hom_intersect(std::vector<double> blin, std::vector<double> clin) {
+  auto bcxp = blin[1]*clin[2] - clin[1]*blin[2];
+  auto bcyp = clin[0]*blin[2] - blin[0]*clin[2];
+  auto bczp = blin[0]*clin[1] - clin[0]*blin[1];
+  return {bcxp, bcyp, bczp};
+}
+
+bool is_on_same_side(std::vector<double> lin, std::pair<double, double> m, std::pair<double, double> o) {
+  return !((m.first*lin[0] + m.second*lin[1] + lin[2] > 0) ^ (o.first*lin[0] + o.second*lin[1] + lin[2] > 0));
+}
+
 class PurePursuitControllerNode {
   ros::NodeHandle nh_;
 
@@ -93,72 +115,97 @@ public:
     return std::make_tuple(x, y, theta, v);
   }
 
-  double etaWithObstacles(const double eta, const double L_fw, double x, double y, const double theta) {
+  // returns positions of relevant vehicles, sorted by increasing angle from the cell center
+  std::vector<std::pair<double, double>> get_voronoi_cell() {
     if(all_odoms_.size() <= 1) {
-      return eta;
+      throw std::logic_error("can't create voronoi cell");
     }
-    x += cos(theta) * params_.lfw;
-    y += sin(theta) * params_.lfw;
-    double mx, my, mtheta, mv;
-    std::tie(mx, my, mtheta, mv) = toPose(all_odoms_.at(params_.car_num - 1));
 
-    double look_x, look_y;
-    for(int side = 1; side > -2; side -= 2) {
-      std::tie(look_x, look_y) = toGlobalPos(x, y, theta, cos(eta)*L_fw, sin(eta)*L_fw, false);
-      int iter_count = 0;
-      int start_index = params_.car_num - 1;
-      bool fail = false;
-      for(int index = params_.car_num % all_odoms_.size(); index != start_index; index = (index + 1) % all_odoms_.size()) {
-        if(iter_count >= 50) {
-          // no progress.
-          std::cerr << "etaWithObstacles went 50 its without success on side: " << side << std::endl;
-          fail = true;
-          break;
-        }
-        iter_count++;
-        if(index == params_.car_num - 1) {
-          continue;
-        }
-        double ox, oy, otheta, ov;
-        std::tie(ox, oy, otheta, ov) = toPose(all_odoms_.at(index));
-        double sep_dist = sqrt(pow(ox - mx, 2) + pow(oy - my, 2) + 1e-12);
-        double sep_vx = (ox - mx) / sep_dist;
-        double sep_vy = (oy - my) / sep_dist;
-        double look_xr = look_x - mx, look_yr = look_y - my;
-        double dist_along_bisector = look_xr * sep_vx + look_yr * sep_vy;
-        if(dist_along_bisector > sep_dist / 2 - params_.voronoi_buffer) {
-          // illegal eta. modify
-          dist_along_bisector = sep_dist / 2 - params_.voronoi_buffer;
-          double p_xr = x - mx, p_yr = y - my;
-          double p_dist_along_bisector = p_xr * sep_vx + p_yr * sep_vy;
-          double lfw_dist_along_bisector = dist_along_bisector - p_dist_along_bisector - 1e-4;
-          if(lfw_dist_along_bisector < -L_fw) {
-            lfw_dist_along_bisector = -L_fw;
-          } else if(lfw_dist_along_bisector > L_fw) {
-            lfw_dist_along_bisector = L_fw;
-          }
-          double dist_to_right = sqrt(L_fw*L_fw - lfw_dist_along_bisector*lfw_dist_along_bisector + 1e-12);
-          look_x = sep_vx * lfw_dist_along_bisector + side * sep_vy * dist_to_right;
-          look_y = -side * sep_vx * dist_to_right + sep_vy * lfw_dist_along_bisector;
-  
-          // update start_index since this was a 'fail'
-          start_index = index;
-          if(params_.car_num == 1) {
-            std::cout << "look_x: " << look_x << " look_y: " << look_y << std::endl;
-          }
-        } else if(params_.car_num == 1) {
-          std::cout << "pass\n";
-        }
+    double my_cell_x, my_cell_y, _mct, _mcv;
+    std::tie(my_cell_x, my_cell_y, _mct, _mcv) = toPose(all_odoms_.at(params_.car_num - 1));
+
+    std::vector<std::tuple<double, double, int>> angle_distance_index;
+    for(int i = 0; i < all_odoms_.size(); i++) {
+      if(i == params_.car_num - 1) {
+        continue; // don't add any edges for own car
       }
-      if(fail) {
-        continue; // try the left side
-      }
-      double look_xr, look_yr;
-      std::tie(look_xr, look_yr) = toRelativePos(x, y, theta, look_x, look_y, false);
-      std::cout << "finished\n\n\n\n\n\n\n\n\n\n";
-      return  atan2(look_yr, look_xr);
+      double ox, oy, _ot, _ov;
+      std::tie(ox, oy, _ot, _ov) = toPose(all_odoms_.at(i));
+      angle_distance_index.push_back(std::make_tuple(atan2(oy - my_cell_y, ox - my_cell_x), -hypot(ox - my_cell_x, oy - my_cell_y), i));
     }
-    throw "no viable eta";
+    std::sort(angle_distance_index.begin(), angle_distance_index.end()); // sort by inc angle, dec dist so if same angle, later line will cut off earlier line
+    auto a_cuts_off_bc = [&](std::pair<double, double> a, std::pair<double, double> b, std::pair<double, double> c, std::pair<double, double> m) {
+      auto alin = get_hom_line(a, m);
+      auto blin = get_hom_line(b, m);
+      auto clin = get_hom_line(c, m);
+      auto inter_p = get_hom_intersect(blin, clin);
+      if(abs(inter_p[2]) < 1e-4) {
+        return false; // b and c don't intersect, so they go off to infinity, so we don't cut it off // TODO: but maybe a still cuts off a parallel line
+      }
+      auto px = inter_p[0] / inter_p[2];
+      auto py = inter_p[1] / inter_p[2];
+
+      return !is_on_same_side(alin, std::make_pair(my_cell_x, my_cell_y), std::make_pair(px, py));
+    };
+
+    std::vector<std::pair<double, double>> relevant_vehicles;
+    for(const auto adi : angle_distance_index) {
+      double ox, oy, _ot, _ov;
+      std::tie(ox, oy, _ot, _ov) = toPose(all_odoms_.at(std::get<2>(adi)));
+      const auto o = std::make_pair(ox, oy);
+      while(relevant_vehicles.size() >= 2 && a_cuts_off_bc(o, relevant_vehicles[relevant_vehicles.size() - 1], relevant_vehicles[relevant_vehicles.size() - 2], std::make_pair(my_cell_x, my_cell_y))) {
+        // o cuts off the intersection of the last two lines, so the last line doesn't affect the voronoi cell, so we remove it
+        relevant_vehicles.pop_back();
+      }
+      relevant_vehicles.push_back(o);
+    }
+
+    // need to check if first or last line cut each other off (iteratively)
+    while(relevant_vehicles.size() >= 3 && a_cuts_off_bc(relevant_vehicles[0], relevant_vehicles[relevant_vehicles.size() - 1], relevant_vehicles[relevant_vehicles.size() - 2], std::make_pair(my_cell_x, my_cell_y))) {
+      // first line cuts off intersection of last two
+      relevant_vehicles.pop_back();
+    }
+    int to_remove = 0;
+    while(relevant_vehicles.size() >= to_remove + 3 && a_cuts_off_bc(relevant_vehicles.back(), relevant_vehicles[to_remove], relevant_vehicles[to_remove + 1], std::make_pair(my_cell_x, my_cell_y))) {
+      // the last line cuts off the first line
+      to_remove++;
+    }
+    relevant_vehicles.erase(relevant_vehicles.begin(), relevant_vehicles.begin() + to_remove);
+    return relevant_vehicles;
+}
+
+  std::tuple<double, double>  etaLfwWithObstacles(const double eta, const double L_fw, const double x, const double y, const double theta) {
+    if(all_odoms_.size() <= 1) {
+      return std::make_tuple(eta, L_fw);
+    }
+
+    const double eta_base_x = x + cos(theta) * params_.lfw;
+    const double eta_base_y = y + sin(theta) * params_.lfw;
+
+    double my_cell_x, my_cell_y, _mct, _mcv;
+    std::tie(my_cell_x, my_cell_y, _mct, _mcv) = toPose(all_odoms_.at(params_.car_num - 1));
+
+    const auto relevant_vehicles = get_voronoi_cell(); // ccw sorted list of vehicles that form edges in the voronoi cell
+    double look_x, look_y;
+    std::tie(look_x, look_y) = toGlobalPos(eta_base_x, eta_base_y, theta, cos(eta)*L_fw, sin(eta)*L_fw, false);
+
+    // project look_x back into voronoi cell in a lazy way:
+    // TODO: project more carefully to maintain angle
+    for(int i = 0; i < relevant_vehicles.size(); i++) {
+      auto lin = get_hom_line(relevant_vehicles[i], std::make_pair(my_cell_x, my_cell_y), params_.voronoi_buffer);
+      if(!is_on_same_side(lin, std::make_pair(my_cell_x, my_cell_y), std::make_pair(look_x, look_y))) {
+        double d = (lin[0]*look_x + lin[1]*look_y + lin[2]) / (lin[0]*lin[0] + lin[1]*lin[1]);
+        double projx = look_x - lin[0]*d, projy = look_y - lin[1]*d;
+        // move to the side of projected spot
+        look_x = projx -lin[1]*d;
+        look_y = projy + lin[0]*d;
+      }
+    }
+    double look_xr, look_yr;
+    std::tie(look_xr, look_yr) = toRelativePos(eta_base_x, eta_base_y, theta, look_x, look_y, false);
+    double new_eta = atan2(look_yr, look_xr);
+    double new_L_fw = hypot(look_xr, look_yr);
+    return std::make_tuple(new_eta, new_L_fw);
   }
 
   void vizCellBoundary(const double x, const double y) {
@@ -235,11 +282,12 @@ public:
     std::tie(x, y, theta, v) = toPose(odom);
 
     // Because the goal traj always contains current position, this is exact dist to lookahead point
-    const double L_fw= params_.lookahead_dist + params_.lookahead_time * abs(v); // TODO what happens if this is negative?
-    
+    double L_fw= params_.lookahead_dist + params_.lookahead_time * abs(v); // TODO what happens if this is negative?
+
     double dx_r, dy_r;
     std::tie(dx_r, dy_r) = toRelativePos(x, y, theta, goal_x, goal_y, true);
-    double eta_orig = etaWithObstacles(atan2(dy_r, dx_r), L_fw, x, y, theta);
+    double eta_orig = atan2(dy_r, dx_r);
+    std::tie(eta_orig, L_fw) = etaLfwWithObstacles(eta_orig, L_fw, x, y, theta);
 
     double v_des = params_.max_vel; // TODO choose better desired velocity and allow parameterization
     const double goal_dist = sqrt(dx_r*dx_r+dy_r*dy_r+1e-12);
